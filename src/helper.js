@@ -9,3 +9,13 @@ export function debounce(func, delay = 250) {
         }, delay);
     };
 }
+
+export function getElementPosition(element) {
+    let [x, y] = [0, 0];
+    while (element) {
+        x += element.offsetLeft - element.scrollLeft + element.clientLeft;
+        y += element.offsetTop - element.scrollLeft + element.clientTop;
+        element = element.offsetParent;
+    }
+    return { x, y };
+}

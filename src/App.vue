@@ -33,45 +33,25 @@
                 <Card>
                     <p>
                         <span v-html="formatedArticle[0]"></span>
-                        <span class="relative" v-if="isSearchingMatch">
+                        <span class="relative" v-show="isSearchingMatch" ref="el_firstMatch">
                             <span v-html="formatedArticle[1]"></span>
-                            <Popup
-                                v-if="
-                                    formatedArticle[1] &&
-                                    isSearchingMatch &&
-                                    Object.keys(dictionary.data).length !== 0
-                                "
-                                :pageContents="dictionary.data.meanings"
-                            >
-                                <template #word>{{ dictionary.data.word }}</template>
-                                <template #phonetic>
-                                    <span
-                                        v-for="(phonetic, i) in dictionary.data.phonetics"
-                                        :key="`phonetic-${i}`"
-                                    >
-                                        /{{ phonetic.text }}/
-                                    </span>
-                                </template>
-                                <template #pageContent="{ mean }">
-                                    <p class="text-sm">{{ mean.partOfSpeech }}</p>
-                                    <div
-                                        v-for="(definition, j) in mean.definitions"
-                                        :key="`definition-${j}`"
-                                        class="space-y-2"
-                                    >
-                                        <p class="text-sm">
-                                            {{ definition.definition }}
-                                        </p>
-                                        <p class="text-sm">
-                                            {{ definition.example }}
-                                        </p>
-                                    </div>
-                                </template>
-                            </Popup>
                         </span>
                         <span v-html="formatedArticle[2]"></span>
                     </p>
                 </Card>
+                <Popup
+                    v-if="
+                        formatedArticle[1] &&
+                        isSearchingMatch &&
+                        Object.keys(dictionary.data).length !== 0
+                    "
+                    :dictionary="{
+                        pageContents: dictionary.data.meanings,
+                        word: dictionary.data.word,
+                        phonetics: dictionary.data.phonetics,
+                    }"
+                    :style="`left:${popup.position.x}px; top:${popup.position.y + 24}px`"
+                />
             </article>
         </main>
     </div>
@@ -81,7 +61,7 @@
 import { ref, reactive, onMounted, computed, watch } from "vue";
 import Card from "./components/Card.vue";
 import Popup from "./components/Popup.vue";
-import { debounce } from "./helper";
+import { debounce, getElementPosition } from "./helper";
 
 export default {
     name: "App",
@@ -92,28 +72,34 @@ export default {
     setup() {
         const searchText = ref("");
         const originArticle = ref("");
+        const el_firstMatch = ref(null);
         const dictionary = reactive({ data: {} });
+        const popup = reactive({ position: { x: 0, y: 0 } });
 
         const isSearchingMatch = computed(() => {
             return searchText.value !== "" && originArticle.value.includes(searchText.value);
         });
 
-        onMounted(() => {
-            fetch("/article.json")
-                .then(res => res.json())
-                .then(res => (originArticle.value = res.articles[0]));
-        });
+        window.addEventListener("resize", debounce(setPopupPostion, 50));
 
         watch(
             searchText,
             debounce(searchText => getDictionary(searchText), 1000)
         );
 
+        onMounted(async () => {
+            // * Get article
+            await fetch("/article.json")
+                .then(res => res.json())
+                .then(res => (originArticle.value = res.articles[0]));
+        });
+
         async function getDictionary(word) {
             const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
             if (res.ok) {
                 const data = await res.json();
                 dictionary.data = data[0];
+                setPopupPostion();
             }
         }
 
@@ -131,7 +117,13 @@ export default {
             return result;
         });
 
-        return { searchText, formatedArticle, isSearchingMatch, dictionary };
+        function setPopupPostion() {
+            if (searchText) {
+                popup.position = getElementPosition(el_firstMatch.value);
+            }
+        }
+
+        return { searchText, formatedArticle, isSearchingMatch, dictionary, el_firstMatch, popup };
     },
 };
 </script>
